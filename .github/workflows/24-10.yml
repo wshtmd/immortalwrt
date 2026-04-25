@@ -13,11 +13,10 @@ jobs:
       - name: 📦 1. 拉取源码
         uses: actions/checkout@v4
 
-      - name: ⚙️ 2. 准备环境与依赖（✅ 修复 pip 参数报错）
+      - name: ⚙️ 2. 准备环境与依赖
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential libncurses5-dev gawk zlib1g-dev git python3 python3-pip unzip wget curl file
-          # 移除 --break-system-packages，兼容 GH Runner 的 pip 22.x
           pip3 install pyyaml pygments markdown Unidecode
 
       - name: 📥 3. 添加插件源（带重试机制）
@@ -47,19 +46,19 @@ jobs:
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-      - name: 🌏 4.5 预置国内镜像源配置        run: |
-          MIRROR="https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/23.05.0"
-          TARGET_PKG="$MIRROR/targets/ramips/mt7621/packages"
-          GENERIC_PKG="$MIRROR/packages/mipsel_24kc"
+      - name: 🌏 4.5 预置国内镜像源配置
+        run: |          MIRROR="https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/23.05.0"
+          T="$MIRROR/targets/ramips/mt7621/packages"
+          G="$MIRROR/packages/mipsel_24kc"
           
           mkdir -p files/etc/opkg
-          echo "src/gz immortalwrt_core $TARGET_PKG" > files/etc/opkg/distfeeds.conf
-          echo "src/gz immortalwrt_kmods $GENERIC_PKG/kmods" >> files/etc/opkg/distfeeds.conf
-          echo "src/gz immortalwrt_base $GENERIC_PKG/base" >> files/etc/opkg/distfeeds.conf
-          echo "src/gz immortalwrt_luci $GENERIC_PKG/luci" >> files/etc/opkg/distfeeds.conf
-          echo "src/gz immortalwrt_packages $GENERIC_PKG/packages" >> files/etc/opkg/distfeeds.conf
-          echo "src/gz immortalwrt_routing $GENERIC_PKG/routing" >> files/etc/opkg/distfeeds.conf
-          echo "src/gz immortalwrt_telephony $GENERIC_PKG/telephony" >> files/etc/opkg/distfeeds.conf
+          echo "src/gz immortalwrt_core $T" > files/etc/opkg/distfeeds.conf
+          echo "src/gz immortalwrt_kmods $G/kmods" >> files/etc/opkg/distfeeds.conf
+          echo "src/gz immortalwrt_base $G/base" >> files/etc/opkg/distfeeds.conf
+          echo "src/gz immortalwrt_luci $G/luci" >> files/etc/opkg/distfeeds.conf
+          echo "src/gz immortalwrt_packages $G/packages" >> files/etc/opkg/distfeeds.conf
+          echo "src/gz immortalwrt_routing $G/routing" >> files/etc/opkg/distfeeds.conf
+          echo "src/gz immortalwrt_telephony $G/telephony" >> files/etc/opkg/distfeeds.conf
           echo "src/gz kenzok8 https://raw.githubusercontent.com/kenzok8/openwrt-packages/main" >> files/etc/opkg/customfeeds.conf
           echo "src/gz small https://raw.githubusercontent.com/kenzok8/small/main" >> files/etc/opkg/customfeeds.conf
           echo "dest root /" > files/etc/opkg.conf
@@ -96,8 +95,8 @@ jobs:
           echo "CONFIG_PACKAGE_luci-i18n-adbyby-plus-zh-cn=y" >> .config
           echo "CONFIG_PACKAGE_luci-i18n-upnp-zh-cn=y" >> .config
           echo "CONFIG_PACKAGE_luci-i18n-samba-zh-cn=y" >> .config
-          echo "CONFIG_PACKAGE_luci-i18n-oaf-zh-cn=y" >> .config          echo "CONFIG_PACKAGE_kmod-cfg80211=y" >> .config
-          echo "CONFIG_PACKAGE_kmod-mac80211=y" >> .config
+          echo "CONFIG_PACKAGE_luci-i18n-oaf-zh-cn=y" >> .config
+          echo "CONFIG_PACKAGE_kmod-cfg80211=y" >> .config          echo "CONFIG_PACKAGE_kmod-mac80211=y" >> .config
           echo "CONFIG_PACKAGE_kmod-mt7603=y" >> .config
           echo "CONFIG_PACKAGE_kmod-mt76x2=y" >> .config
           echo "CONFIG_PACKAGE_wpad-basic-wolfssl=y" >> .config
@@ -131,21 +130,25 @@ jobs:
           echo "CONFIG_ALL_KMODS=n" >> .config
           make defconfig
 
-      - name: 🔧 5.1 绝对屏蔽特征库下载（防海外网络超时）
+      - name: 🔧 5.1 安全屏蔽特征库下载（防 Makefile 语法崩溃）
         run: |
-          echo "👉 正在彻底屏蔽 OAF/Adbyby 编译期下载逻辑..."
+          echo "👉 正在安全处理 OAF/Adbyby 特征库编译逻辑..."
+          # 1. 严格替换 curl/wget 为 true（保留 Tab 缩进，不破坏 Makefile 结构）
           for f in $(find package/OpenAppFilter package/kenzok8 package/small -type f -name "Makefile" 2>/dev/null); do
-            sed -i '/curl\|wget\|DOWNLOAD\|FETCH\|\.db\|\.zip\|hxapi\|maimaitom/s/^/#DISABLED: /' "$f"
+            sed -i '/curl\|wget/c\\t@true' "$f"
           done
-          echo "✅ 已注释所有 Makefile 下载指令"
+          echo "✅ 已安全替换网络请求指令"
+          # 2. 清理插件自带的临时链接文件
           rm -f package/OpenAppFilter/*/url.txt package/OpenAppFilter/*/ipLoad.txt 2>/dev/null
+          # 3. 预置空特征库占位文件
           mkdir -p files/usr/share/oaf files/usr/share/adbyby
           touch files/usr/share/oaf/oaf.db files/usr/share/oaf/feature.db files/usr/share/adbyby/adbyby.db
-          echo "✅ 已生成空特征库占位文件"
-          echo "CONFIG_OAF_AUTO_UPDATE=n" >> .config
-          echo "CONFIG_ADBYBY_AUTO_UPDATE=n" >> .config
+          echo "✅ 已生成占位文件"
+          # 4. 配置层关闭自动更新
+          echo "CONFIG_OAF_AUTO_UPDATE=n" >> .config          echo "CONFIG_ADBYBY_AUTO_DB=n" >> .config
 
-      - name: 📡 5.5 预设 WiFi 配置        run: |
+      - name: 📡 5.5 预设 WiFi 配置
+        run: |
           mkdir -p files/etc/config
           mkdir -p files/etc/hotplug.d/iface
           echo "config wifi-device 'radio0'" > files/etc/config/wireless
@@ -191,10 +194,10 @@ jobs:
       - name: 📥 6. 下载源码包
         run: make download -j$(nproc)
 
-      - name: 🏗️ 7. 开始编译（全核 + 精简日志）
-        run: make -j$(nproc)
+      - name: 🏗️ 7. 开始编译（全核 + 精简日志）        run: make -j$(nproc)
 
-      - name: 🧹 8. 收集固件        run: |
+      - name: 🧹 8. 收集固件
+        run: |
           mkdir -p firmware_output
           find bin -type f -name "*hiwifi*factory*.bin" -exec cp {} firmware_output/ \;
           if [ ! "$(ls -A firmware_output/*.bin 2>/dev/null)" ]; then
@@ -207,6 +210,7 @@ jobs:
           echo "📱 默认登录：192.168.1.1 / root / password"
           echo "🌐 默认语言：中文"
           echo "📶 WiFi: immortalwrt / immortalwrt-5G / zxcvbnm.0"
+          echo "⚠️ 刷入后请在 LuCI 应用过滤页面手动更新一次特征库"
           echo "=========================================="
 
       - name: 📤 9. 上传固件
