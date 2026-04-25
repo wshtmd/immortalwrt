@@ -1,0 +1,157 @@
+# 只复制下面这部分，覆盖整个文件
+name: ImmortalWrt-24.10-HC5962
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [openwrt-24.10, master, main]
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          repository: immortalwrt/immortalwrt
+          ref: openwrt-24.10
+
+      - name: Install deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libncurses5-dev gawk zlib1g-dev git python3 python3-pip unzip wget curl file
+
+      - name: Clone plugins
+        run: |
+          rm -rf package/QModem package/OpenAppFilter package/kenzok8 package/small
+          git clone https://github.com/wshcxl/QModem.git package/QModem
+          git clone https://github.com/wshcxl/Open-App.git package/OpenAppFilter
+          git clone --depth=1 https://github.com/kenzok8/openwrt-packages package/kenzok8 || true
+          git clone --depth=1 https://github.com/kenzok8/small package/small || true
+
+      - name: Update feeds
+        run: |
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      - name: Setup mirrors
+        run: |
+          mkdir -p files/etc/opkg
+          echo "src/gz immortalwrt_core https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/24.10/targets/ramips/mt7621/packages" > files/etc/opkg/distfeeds.conf
+          echo "src/gz immortalwrt_kmods https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/24.10/packages/mipsel_24kc/kmods" >> files/etc/opkg/distfeeds.conf
+          echo "src/gz immortalwrt_base https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/24.10/packages/mipsel_24kc/base" >> files/etc/opkg/distfeeds.conf
+          echo "src/gz immortalwrt_luci https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/24.10/packages/mipsel_24kc/luci" >> files/etc/opkg/distfeeds.conf
+          echo "src/gz immortalwrt_packages https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/24.10/packages/mipsel_24kc/packages" >> files/etc/opkg/distfeeds.conf
+          echo "src/gz immortalwrt_routing https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/24.10/packages/mipsel_24kc/routing" >> files/etc/opkg/distfeeds.conf
+          echo "src/gz immortalwrt_telephony https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/24.10/packages/mipsel_24kc/telephony" >> files/etc/opkg/distfeeds.conf
+          echo "src/gz kenzok8 https://raw.githubusercontent.com/kenzok8/openwrt-packages/main" > files/etc/opkg/customfeeds.conf
+          echo "src/gz small https://raw.githubusercontent.com/kenzok8/small/main" >> files/etc/opkg/customfeeds.conf
+          echo "dest root /" > files/etc/opkg.conf
+          echo "dest ram /tmp" >> files/etc/opkg.conf          echo "lists_dir ext /var/opkg-lists" >> files/etc/opkg.conf
+          echo "option overlay_root /overlay" >> files/etc/opkg.conf
+          echo "option check_signature" >> files/etc/opkg.conf
+
+      - name: Generate config
+        run: |
+          rm -f .config
+          echo "CONFIG_TARGET_ramips=y" >> .config
+          echo "CONFIG_TARGET_ramips_mt7621=y" >> .config
+          echo "CONFIG_TARGET_ramips_mt7621_DEVICE_hiwifi_hc5962=y" >> .config
+          echo "CONFIG_TARGET_ROOTFS_SQUASHFS=y" >> .config
+          echo "CONFIG_PACKAGE_luci=y" >> .config
+          echo "CONFIG_PACKAGE_luci-base=y" >> .config
+          echo "CONFIG_PACKAGE_luci-mod-network=y" >> .config
+          echo "CONFIG_PACKAGE_luci-mod-status=y" >> .config
+          echo "CONFIG_PACKAGE_luci-mod-system=y" >> .config
+          echo "CONFIG_PACKAGE_luci-compat=y" >> .config
+          echo "CONFIG_LUCI_LANG_zh-cn=y" >> .config
+          echo "CONFIG_LUCI_DEFAULT_LANG=zh-cn" >> .config
+          echo "CONFIG_PACKAGE_luci-theme-argon=y" >> .config
+          echo "CONFIG_PACKAGE_luci-i18n-base-zh-cn=y" >> .config
+          echo "CONFIG_PACKAGE_kmod-cfg80211=y" >> .config
+          echo "CONFIG_PACKAGE_kmod-mac80211=y" >> .config
+          echo "CONFIG_PACKAGE_kmod-mt7603=y" >> .config
+          echo "CONFIG_PACKAGE_kmod-mt76x2=y" >> .config
+          echo "CONFIG_PACKAGE_wpad-basic-wolfssl=y" >> .config
+          echo "CONFIG_PACKAGE_luci-proto-wireless=y" >> .config
+          echo "CONFIG_PACKAGE_firewall4=y" >> .config
+          echo "CONFIG_PACKAGE_luci-app-firewall=y" >> .config
+          echo "CONFIG_PACKAGE_luci-proto-pppoe=y" >> .config
+          echo "CONFIG_PACKAGE_kmod-usb-net-rndis=y" >> .config
+          echo "CONFIG_PACKAGE_kmod-usb-net=y" >> .config
+          echo "CONFIG_PACKAGE_kmod-usb3=y" >> .config
+          echo "CONFIG_PACKAGE_kmod-usb2=y" >> .config
+          echo "CONFIG_PACKAGE_usb-modeswitch=y" >> .config
+          echo "CONFIG_PACKAGE_comgt=y" >> .config
+          echo "CONFIG_PACKAGE_kmod-tun=y" >> .config
+          echo "CONFIG_PACKAGE_luci-app-qmodem-next=y" >> .config
+          echo "CONFIG_PACKAGE_adbyby=y" >> .config
+          echo "CONFIG_PACKAGE_luci-app-adbyby-plus=y" >> .config
+          echo "CONFIG_PACKAGE_miniupnpd=y" >> .config
+          echo "CONFIG_PACKAGE_luci-app-upnp=y" >> .config
+          echo "CONFIG_PACKAGE_luci-app-oaf=y" >> .config
+          echo "CONFIG_PACKAGE_luci-i18n-oaf-zh-cn=y" >> .config
+          echo "CONFIG_PACKAGE_ffmpeg=y" >> .config
+          echo "CONFIG_PACKAGE_curl=y" >> .config
+          echo "CONFIG_PACKAGE_jq=y" >> .config
+          echo "CONFIG_PACKAGE_onvif-utils=y" >> .config
+          echo "CONFIG_PACKAGE_samba36-server=y" >> .config
+          echo "CONFIG_PACKAGE_luci-app-samba=y" >> .config          echo "CONFIG_PACKAGE_nmap=y" >> .config
+          echo "CONFIG_PACKAGE_luci-app-opkg=y" >> .config
+          echo 'CONFIG_TARGET_ROOT_PASSWORD="password"' >> .config
+          echo "CONFIG_ALL_NONSHARED=n" >> .config
+          echo "CONFIG_ALL_KMODS=n" >> .config
+          make defconfig
+
+      - name: Setup WiFi
+        run: |
+          mkdir -p files/etc/config
+          echo "config wifi-device 'radio0'" > files/etc/config/wireless
+          echo "    option type 'mac80211'" >> files/etc/config/wireless
+          echo "    option band '2g'" >> files/etc/config/wireless
+          echo "    option channel '11'" >> files/etc/config/wireless
+          echo "    option htmode 'HT20'" >> files/etc/config/wireless
+          echo "    option disabled '0'" >> files/etc/config/wireless
+          echo "config wifi-iface 'default_radio0'" >> files/etc/config/wireless
+          echo "    option device 'radio0'" >> files/etc/config/wireless
+          echo "    option network 'lan'" >> files/etc/config/wireless
+          echo "    option mode 'ap'" >> files/etc/config/wireless
+          echo "    option ssid 'ImmortalWrt_2G'" >> files/etc/config/wireless
+          echo "    option encryption 'psk2'" >> files/etc/config/wireless
+          echo "    option key 'zxcvbnm.0'" >> files/etc/config/wireless
+          echo "config wifi-device 'radio1'" >> files/etc/config/wireless
+          echo "    option type 'mac80211'" >> files/etc/config/wireless
+          echo "    option band '5g'" >> files/etc/config/wireless
+          echo "    option channel '149'" >> files/etc/config/wireless
+          echo "    option htmode 'VHT80'" >> files/etc/config/wireless
+          echo "    option disabled '0'" >> files/etc/config/wireless
+          echo "config wifi-iface 'default_radio1'" >> files/etc/config/wireless
+          echo "    option device 'radio1'" >> files/etc/config/wireless
+          echo "    option network 'lan'" >> files/etc/config/wireless
+          echo "    option mode 'ap'" >> files/etc/config/wireless
+          echo "    option ssid 'ImmortalWrt_5G'" >> files/etc/config/wireless
+          echo "    option encryption 'psk2'" >> files/etc/config/wireless
+          echo "    option key 'zxcvbnm.0'" >> files/etc/config/wireless
+
+      - name: Disable plugin downloads
+        run: |
+          find package/OpenAppFilter package/kenzok8 package/small -type f -name "Makefile" -exec sed -i '/curl\|wget\|DOWNLOAD\|FETCH\|\.db\|\.zip/s/^/#DISABLED: /' {} + 2>/dev/null || true
+          mkdir -p files/usr/share/oaf files/usr/share/adbyby
+          touch files/usr/share/oaf/oaf.db files/usr/share/oaf/feature.db files/usr/share/adbyby/adbyby.db
+
+      - name: Download sources
+        run: make download -j$(nproc)
+
+      - name: Build
+        run: make -j$(nproc)
+
+      - name: Collect firmware        run: |
+          mkdir -p firmware_output
+          find bin -type f \( -name "*hiwifi*factory*.bin" -o -name "*hiwifi*squashfs*.bin" \) -exec cp {} firmware_output/ \;
+          ls -lh firmware_output/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: immortalwrt-hc5962-24.10
+          path: firmware_output/*.bin
