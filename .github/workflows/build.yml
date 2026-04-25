@@ -1,4 +1,4 @@
-name: 🚀 全核稳定编译
+name: 🚀 全核稳定编译优化
 
 on:
   workflow_dispatch:
