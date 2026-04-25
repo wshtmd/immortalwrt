@@ -1,4 +1,4 @@
-name: 🚀 监控|OAF+NVR|汉化+24.10
+name: 🚀 OAF+NVR|汉化
 
 on:
   workflow_dispatch:
