@@ -12,6 +12,8 @@ jobs:
     steps:
       - name: 📦 1. 拉取源码
         uses: actions/checkout@v4
+        with:
+          ref: openwrt-24.10                   # 🔹 就改这一行，指定 24.10 分支
 
       - name: ⚙️ 2. 准备环境与依赖
         run: |
