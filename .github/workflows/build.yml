@@ -52,12 +52,12 @@ jobs:
       # ==========================================
       # 第五步：配置国内镜像源（防下载超时）
       # ==========================================
-      - name: 🌏 第五步：配置清华大学国内加速镜像源
+      - name: 🌏 第五步：配置国内镜像源（✅ 修复目录报错）
         run: |
-          # 1. 强制创建目录，防止“文件不存在”报错
+          # 🔹 关键：先创建目录，-p 保证多级创建且不报错
           mkdir -p files/etc/opkg
           
-          # 2. 写入官方主源配置（24.10 版本）
+          # 🔹 逐行写入，避免缩进/引号问题
           echo "src/gz immortalwrt_core https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/24.10/targets/ramips/mt7621/packages" > files/etc/opkg/distfeeds.conf
           echo "src/gz immortalwrt_kmods https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/24.10/packages/mipsel_24kc/kmods" >> files/etc/opkg/distfeeds.conf
           echo "src/gz immortalwrt_base https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/24.10/packages/mipsel_24kc/base" >> files/etc/opkg/distfeeds.conf
@@ -66,16 +66,17 @@ jobs:
           echo "src/gz immortalwrt_routing https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/24.10/packages/mipsel_24kc/routing" >> files/etc/opkg/distfeeds.conf
           echo "src/gz immortalwrt_telephony https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/24.10/packages/mipsel_24kc/telephony" >> files/etc/opkg/distfeeds.conf
           
-          # 3. 写入第三方插件源
           echo "src/gz kenzok8 https://raw.githubusercontent.com/kenzok8/openwrt-packages/main" > files/etc/opkg/customfeeds.conf
           echo "src/gz small https://raw.githubusercontent.com/kenzok8/small/main" >> files/etc/opkg/customfeeds.conf
           
-          # 4. 写入 opkg 基础配置文件
           echo "dest root /" > files/etc/opkg.conf
           echo "dest ram /tmp" >> files/etc/opkg.conf
           echo "lists_dir ext /var/opkg-lists" >> files/etc/opkg.conf
           echo "option overlay_root /overlay" >> files/etc/opkg.conf
           echo "option check_signature" >> files/etc/opkg.conf
+          
+          echo "✅ 镜像源配置完成"
+          ls -la files/etc/opkg/
 
       # ==========================================
       # 第六步：生成 .config 编译配置
