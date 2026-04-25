@@ -1,4 +1,4 @@
-name: 🚀 |汉化+无线修复版|全核稳定编译
+name: 🚀 监控|全核稳定编译
 
 on:
   workflow_dispatch:
