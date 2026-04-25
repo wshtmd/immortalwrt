@@ -130,26 +130,22 @@ jobs:
           echo "CONFIG_ALL_KMODS=n" >> .config
           make defconfig
 
-      - name: 🔧 5.1 安全屏蔽特征库下载（防 Makefile 语法崩溃）
+      - name: 🔧 5.1 安全屏蔽特征库下载
         run: |
           echo "👉 正在安全处理 OAF/Adbyby 特征库编译逻辑..."
-          # 1. 严格替换 curl/wget 为 true（保留 Tab 缩进，不破坏 Makefile 结构）
           for f in $(find package/OpenAppFilter package/kenzok8 package/small -type f -name "Makefile" 2>/dev/null); do
             sed -i '/curl\|wget/c\\t@true' "$f"
           done
           echo "✅ 已安全替换网络请求指令"
-          # 2. 清理插件自带的临时链接文件
           rm -f package/OpenAppFilter/*/url.txt package/OpenAppFilter/*/ipLoad.txt 2>/dev/null
-          # 3. 预置空特征库占位文件
           mkdir -p files/usr/share/oaf files/usr/share/adbyby
           touch files/usr/share/oaf/oaf.db files/usr/share/oaf/feature.db files/usr/share/adbyby/adbyby.db
           echo "✅ 已生成占位文件"
-          # 4. 配置层关闭自动更新
-          echo "CONFIG_OAF_AUTO_UPDATE=n" >> .config          echo "CONFIG_ADBYBY_AUTO_DB=n" >> .config
+          echo "CONFIG_OAF_AUTO_UPDATE=n" >> .config
+          echo "CONFIG_ADBYBY_AUTO_DB=n" >> .config
 
       - name: 📡 5.5 预设 WiFi 配置
-        run: |
-          mkdir -p files/etc/config
+        run: |          mkdir -p files/etc/config
           mkdir -p files/etc/hotplug.d/iface
           echo "config wifi-device 'radio0'" > files/etc/config/wireless
           echo "    option type 'mac80211'" >> files/etc/config/wireless
@@ -194,11 +190,11 @@ jobs:
       - name: 📥 6. 下载源码包
         run: make download -j$(nproc)
 
-      - name: 🏗️ 7. 开始编译（全核 + 精简日志）        run: make -j$(nproc)
+      - name: 🏗️ 7. 开始编译（全核 + 精简日志）
+        run: make -j$(nproc)
 
       - name: 🧹 8. 收集固件
-        run: |
-          mkdir -p firmware_output
+        run: |          mkdir -p firmware_output
           find bin -type f -name "*hiwifi*factory*.bin" -exec cp {} firmware_output/ \;
           if [ ! "$(ls -A firmware_output/*.bin 2>/dev/null)" ]; then
             find bin -type f -name "*hiwifi*squashfs*.bin" -exec cp {} firmware_output/ \;
@@ -210,7 +206,6 @@ jobs:
           echo "📱 默认登录：192.168.1.1 / root / password"
           echo "🌐 默认语言：中文"
           echo "📶 WiFi: immortalwrt / immortalwrt-5G / zxcvbnm.0"
-          echo "⚠️ 刷入后请在 LuCI 应用过滤页面手动更新一次特征库"
           echo "=========================================="
 
       - name: 📤 9. 上传固件
