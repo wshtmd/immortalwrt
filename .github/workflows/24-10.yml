@@ -1,199 +1,173 @@
-name: 🚀 编译|OAF+NVR|24.10稳定版|全核优化
+name: 🚀 编译|OAF+NVR|24.10稳定版
 on:
   workflow_dispatch:
 
 jobs:
-  build_firmware:
-    runs-on: ubuntu-22.04  # 🔹 固定 22.04，编译 OpenWrt 最稳定
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
+  build:
+    runs-on: ubuntu-22.04
     steps:
-      - name: 📦 1. 拉取源码 (指定 24.10 分支)
+      - name: 📦 1. 拉取源码
         uses: actions/checkout@v4
         with:
           repository: immortalwrt/immortalwrt
           ref: openwrt-24.10
           fetch-depth: 0
 
-      - name: 🔍 1.1 验证版本信息
+      - name: 🔍 1.1 验证分支
         run: |
-          echo "✅ 分支: $(git branch --show-current)"
-          echo "✅ 内核配置: $(grep KERNEL_PATCHVER target/linux/ramips/Makefile)"
-          cat package/base-files/files/etc/openwrt_release | grep DISTRIB_RELEASE
+          git branch --show-current
+          grep KERNEL_PATCHVER target/linux/ramips/Makefile
 
-      - name: ⚙️ 2. 准备环境与依赖
+      - name: ⚙️ 2. 安装依赖
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential libncurses-dev gawk zlib1g-dev git python3 python3-pip unzip wget curl file
           pip3 install --break-system-packages pyyaml pygments markdown Unidecode
 
-      - name: 📥 3. 添加插件源（带重试）
+      - name: 📥 3. 下载插件源码
         run: |
-          echo "👉 下载 5G Modem 插件..."
-          rm -rf package/QModem
+          rm -rf package/QModem package/OpenAppFilter package/kenzok8 package/small
           git clone https://github.com/wshcxl/QModem.git package/QModem
-          
-          echo "👉 下载 OAF 插件..."
-          rm -rf package/OpenAppFilter
           git clone https://github.com/wshcxl/Open-App.git package/OpenAppFilter
-          
-          for i in 1 2 3; do
-            git clone --depth=1 https://github.com/kenzok8/openwrt-packages package/kenzok8 && break
-            echo "⚠️ kenzok8 第 $i 次失败，5秒重试..." && sleep 5
-          done
-          for i in 1 2 3; do
-            git clone --depth=1 https://github.com/kenzok8/small package/small && break
-            echo "⚠️ small 第 $i 次失败，5秒重试..." && sleep 5
-          done
+          git clone --depth=1 https://github.com/kenzok8/openwrt-packages package/kenzok8 || true
+          git clone --depth=1 https://github.com/kenzok8/small package/small || true
 
-      - name: 🔌 4. 更新 Feeds        run: |
+      - name: 🔌 4. 更新 Feeds
+        run: |
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-      - name: 🌏 4.5 预置国内镜像源 (24.10)
+      - name: 🌏 4.5 配置软件源
         run: |
-          MIRROR="https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/24.10"
-          TARGET_PKG="$MIRROR/targets/ramips/mt7621/packages"
-          GENERIC_PKG="$MIRROR/packages/mipsel_24kc"
-          
           mkdir -p files/etc/opkg
-          echo "src/gz immortalwrt_core $TARGET_PKG" > files/etc/opkg/distfeeds.conf
-          echo "src/gz immortalwrt_kmods $GENERIC_PKG/kmods" >> files/etc/opkg/distfeeds.conf
-          echo "src/gz immortalwrt_base $GENERIC_PKG/base" >> files/etc/opkg/distfeeds.conf
-          echo "src/gz immortalwrt_luci $GENERIC_PKG/luci" >> files/etc/opkg/distfeeds.conf
-          echo "src/gz immortalwrt_packages $GENERIC_PKG/packages" >> files/etc/opkg/distfeeds.conf
-          echo "src/gz immortalwrt_routing $GENERIC_PKG/routing" >> files/etc/opkg/distfeeds.conf
-          echo "src/gz immortalwrt_telephony $GENERIC_PKG/telephony" >> files/etc/opkg/distfeeds.conf
-          echo "src/gz kenzok8 https://raw.githubusercontent.com/kenzok8/openwrt-packages/main" >> files/etc/opkg/customfeeds.conf
-          echo "src/gz small https://raw.githubusercontent.com/kenzok8/small/main" >> files/etc/opkg/customfeeds.conf
-          echo "dest root /" > files/etc/opkg.conf
-          echo "dest ram /tmp" >> files/etc/opkg.conf
-          echo "lists_dir ext /var/opkg-lists" >> files/etc/opkg.conf
-          echo "option overlay_root /overlay" >> files/etc/opkg.conf
-          echo "option check_signature" >> files/etc/opkg.conf
+          cat > files/etc/opkg/distfeeds.conf << 'EOS'
+          src/gz immortalwrt_core https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/24.10/targets/ramips/mt7621/packages
+          src/gz immortalwrt_kmods https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/24.10/packages/mipsel_24kc/kmods
+          src/gz immortalwrt_base https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/24.10/packages/mipsel_24kc/base
+          src/gz immortalwrt_luci https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/24.10/packages/mipsel_24kc/luci
+          src/gz immortalwrt_packages https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/24.10/packages/mipsel_24kc/packages
+          src/gz immortalwrt_routing https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/24.10/packages/mipsel_24kc/routing
+          src/gz immortalwrt_telephony https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/24.10/packages/mipsel_24kc/telephony          EOS
+          cat > files/etc/opkg/customfeeds.conf << 'EOS'
+          src/gz kenzok8 https://raw.githubusercontent.com/kenzok8/openwrt-packages/main
+          src/gz small https://raw.githubusercontent.com/kenzok8/small/main
+          EOS
+          cat > files/etc/opkg.conf << 'EOS'
+          dest root /
+          dest ram /tmp
+          lists_dir ext /var/opkg-lists
+          option overlay_root /overlay
+          option check_signature
+          EOS
 
-      - name: 📝 5. 深度配置 (24.10 专属优化)
+      - name: 📝 5. 生成 .config
         run: |
           rm -f .config
-          # 目标平台
-          echo "CONFIG_TARGET_ramips=y" >> .config
-          echo "CONFIG_TARGET_ramips_mt7621=y" >> .config
-          echo "CONFIG_TARGET_ramips_mt7621_DEVICE_hiwifi_hc5962=y" >> .config
-          echo "CONFIG_TARGET_ROOTFS_SQUASHFS=y" >> .config
-          
-          # LuCI 核心 (24.10 已废弃 admin-full，由 mod-network/status 接管)
-          echo "CONFIG_PACKAGE_luci=y" >> .config
-          echo "CONFIG_PACKAGE_luci-base=y" >> .config
-          echo "CONFIG_PACKAGE_luci-mod-network=y" >> .config
-          echo "CONFIG_PACKAGE_luci-mod-status=y" >> .config
-          echo "CONFIG_PACKAGE_luci-mod-system=y" >> .config
-          echo "CONFIG_PACKAGE_luci-compat=y" >> .config  # 🔹 兼容第三方老旧 LuCI 插件必加
-          
-          # 中文与主题
-          echo "CONFIG_LUCI_LANG_zh-cn=y" >> .config
-          echo "CONFIG_LUCI_DEFAULT_LANG=zh-cn" >> .config
-          echo "CONFIG_PACKAGE_luci-theme-argon=y" >> .config
-          echo "CONFIG_PACKAGE_luci-i18n-base-zh-cn=y" >> .config
-          
-          # 无线驱动 (24.10 语法已统一)          echo "CONFIG_PACKAGE_kmod-cfg80211=y" >> .config
-          echo "CONFIG_PACKAGE_kmod-mac80211=y" >> .config
-          echo "CONFIG_PACKAGE_kmod-mt7603=y" >> .config
-          echo "CONFIG_PACKAGE_kmod-mt76x2=y" >> .config
-          echo "CONFIG_PACKAGE_wpad-basic-wolfssl=y" >> .config
-          echo "CONFIG_PACKAGE_luci-proto-wireless=y" >> .config
-          
-          # 防火墙 (24.10 默认 nftables/fw4)
-          echo "CONFIG_PACKAGE_firewall4=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-firewall=y" >> .config
-          
-          # 基础功能与 USB/拨号
-          echo "CONFIG_PACKAGE_luci-proto-pppoe=y" >> .config
-          echo "CONFIG_PACKAGE_kmod-usb-net-rndis=y" >> .config
-          echo "CONFIG_PACKAGE_kmod-usb-net=y" >> .config
-          echo "CONFIG_PACKAGE_kmod-usb3=y" >> .config
-          echo "CONFIG_PACKAGE_kmod-usb2=y" >> .config
-          echo "CONFIG_PACKAGE_usb-modeswitch=y" >> .config
-          echo "CONFIG_PACKAGE_comgt=y" >> .config
-          echo "CONFIG_PACKAGE_kmod-tun=y" >> .config
-          
-          # 插件开关
-          echo "CONFIG_PACKAGE_luci-app-qmodem-next=y" >> .config
-          echo "CONFIG_PACKAGE_adbyby=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-adbyby-plus=y" >> .config
-          echo "CONFIG_PACKAGE_miniupnpd=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-upnp=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-oaf=y" >> .config
-          echo "CONFIG_PACKAGE_luci-i18n-oaf-zh-cn=y" >> .config
-          echo "CONFIG_PACKAGE_ffmpeg=y" >> .config
-          echo "CONFIG_PACKAGE_curl=y" >> .config
-          echo "CONFIG_PACKAGE_jq=y" >> .config
-          echo "CONFIG_PACKAGE_onvif-utils=y" >> .config
-          echo "CONFIG_PACKAGE_samba36-server=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-samba=y" >> .config
-          echo "CONFIG_PACKAGE_nmap=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-opkg=y" >> .config
-          
-          echo "CONFIG_TARGET_ROOT_PASSWORD=\"password\"" >> .config
-          echo "CONFIG_ALL_NONSHARED=n" >> .config
-          echo "CONFIG_ALL_KMODS=n" >> .config
+          cat > .config << 'EOS'
+          CONFIG_TARGET_ramips=y
+          CONFIG_TARGET_ramips_mt7621=y
+          CONFIG_TARGET_ramips_mt7621_DEVICE_hiwifi_hc5962=y
+          CONFIG_TARGET_ROOTFS_SQUASHFS=y
+          CONFIG_PACKAGE_luci=y
+          CONFIG_PACKAGE_luci-base=y
+          CONFIG_PACKAGE_luci-mod-network=y
+          CONFIG_PACKAGE_luci-mod-status=y
+          CONFIG_PACKAGE_luci-mod-system=y
+          CONFIG_PACKAGE_luci-compat=y
+          CONFIG_LUCI_LANG_zh-cn=y
+          CONFIG_LUCI_DEFAULT_LANG=zh-cn
+          CONFIG_PACKAGE_luci-theme-argon=y
+          CONFIG_PACKAGE_luci-i18n-base-zh-cn=y
+          CONFIG_PACKAGE_kmod-cfg80211=y
+          CONFIG_PACKAGE_kmod-mac80211=y
+          CONFIG_PACKAGE_kmod-mt7603=y
+          CONFIG_PACKAGE_kmod-mt76x2=y
+          CONFIG_PACKAGE_wpad-basic-wolfssl=y
+          CONFIG_PACKAGE_luci-proto-wireless=y
+          CONFIG_PACKAGE_firewall4=y
+          CONFIG_PACKAGE_luci-app-firewall=y
+          CONFIG_PACKAGE_luci-proto-pppoe=y
+          CONFIG_PACKAGE_kmod-usb-net-rndis=y
+          CONFIG_PACKAGE_kmod-usb-net=y
+          CONFIG_PACKAGE_kmod-usb3=y
+          CONFIG_PACKAGE_kmod-usb2=y
+          CONFIG_PACKAGE_usb-modeswitch=y
+          CONFIG_PACKAGE_comgt=y
+          CONFIG_PACKAGE_kmod-tun=y
+          CONFIG_PACKAGE_luci-app-qmodem-next=y
+          CONFIG_PACKAGE_adbyby=y
+          CONFIG_PACKAGE_luci-app-adbyby-plus=y          CONFIG_PACKAGE_miniupnpd=y
+          CONFIG_PACKAGE_luci-app-upnp=y
+          CONFIG_PACKAGE_luci-app-oaf=y
+          CONFIG_PACKAGE_luci-i18n-oaf-zh-cn=y
+          CONFIG_PACKAGE_ffmpeg=y
+          CONFIG_PACKAGE_curl=y
+          CONFIG_PACKAGE_jq=y
+          CONFIG_PACKAGE_onvif-utils=y
+          CONFIG_PACKAGE_samba36-server=y
+          CONFIG_PACKAGE_luci-app-samba=y
+          CONFIG_PACKAGE_nmap=y
+          CONFIG_PACKAGE_luci-app-opkg=y
+          CONFIG_TARGET_ROOT_PASSWORD="password"
+          CONFIG_ALL_NONSHARED=n
+          CONFIG_ALL_KMODS=n
+          EOS
           make defconfig
 
-      - name: 📡 5.5 预设 WiFi 配置 (24.10 新语法)
+      - name: 📡 5.5 预设 WiFi
         run: |
           mkdir -p files/etc/config
-          # 24.10 已弃用 hwmode，统一改用 band
-          echo "config wifi-device 'radio0'" > files/etc/config/wireless
-          echo "    option type 'mac80211'" >> files/etc/config/wireless
-          echo "    option band '2g'" >> files/etc/config/wireless          echo "    option channel '11'" >> files/etc/config/wireless
-          echo "    option htmode 'HT20'" >> files/etc/config/wireless
-          echo "    option disabled '0'" >> files/etc/config/wireless
-          echo "config wifi-iface 'default_radio0'" >> files/etc/config/wireless
-          echo "    option device 'radio0'" >> files/etc/config/wireless
-          echo "    option network 'lan'" >> files/etc/config/wireless
-          echo "    option mode 'ap'" >> files/etc/config/wireless
-          echo "    option ssid 'ImmortalWrt_2G'" >> files/etc/config/wireless
-          echo "    option encryption 'psk2'" >> files/etc/config/wireless
-          echo "    option key 'zxcvbnm.0'" >> files/etc/config/wireless
-          
-          echo "" >> files/etc/config/wireless
-          echo "config wifi-device 'radio1'" >> files/etc/config/wireless
-          echo "    option type 'mac80211'" >> files/etc/config/wireless
-          echo "    option band '5g'" >> files/etc/config/wireless
-          echo "    option channel '149'" >> files/etc/config/wireless
-          echo "    option htmode 'VHT80'" >> files/etc/config/wireless
-          echo "    option disabled '0'" >> files/etc/config/wireless
-          echo "config wifi-iface 'default_radio1'" >> files/etc/config/wireless
-          echo "    option device 'radio1'" >> files/etc/config/wireless
-          echo "    option network 'lan'" >> files/etc/config/wireless
-          echo "    option mode 'ap'" >> files/etc/config/wireless
-          echo "    option ssid 'ImmortalWrt_5G'" >> files/etc/config/wireless
-          echo "    option encryption 'psk2'" >> files/etc/config/wireless
-          echo "    option key 'zxcvbnm.0'" >> files/etc/config/wireless
+          cat > files/etc/config/wireless << 'EOS'
+          config wifi-device 'radio0'
+              option type 'mac80211'
+              option band '2g'
+              option channel '11'
+              option htmode 'HT20'
+              option disabled '0'
 
-      - name: 🔧 5.1 屏蔽编译期下载 (防超时)
+          config wifi-iface 'default_radio0'
+              option device 'radio0'
+              option network 'lan'
+              option mode 'ap'
+              option ssid 'ImmortalWrt_2G'
+              option encryption 'psk2'
+              option key 'zxcvbnm.0'
+
+          config wifi-device 'radio1'
+              option type 'mac80211'
+              option band '5g'
+              option channel '149'
+              option htmode 'VHT80'
+              option disabled '0'
+
+          config wifi-iface 'default_radio1'
+              option device 'radio1'
+              option network 'lan'
+              option mode 'ap'
+              option ssid 'ImmortalWrt_5G'
+              option encryption 'psk2'              option key 'zxcvbnm.0'
+          EOS
+
+      - name: 🔧 5.1 屏蔽编译期下载
         run: |
-          for f in $(find package/OpenAppFilter package/kenzok8 package/small -type f -name "Makefile" 2>/dev/null); do
-            sed -i '/curl\|wget\|DOWNLOAD\|FETCH\|\.db\|\.zip\|hxapi\|maimaitom/s/^/#DISABLED: /' "$f"
-          done
+          find package/OpenAppFilter package/kenzok8 package/small -type f -name "Makefile" -exec sed -i '/curl\|wget\|DOWNLOAD\|FETCH\|\.db\|\.zip/s/^/#DISABLED: /' {} +
           mkdir -p files/usr/share/oaf files/usr/share/adbyby
           touch files/usr/share/oaf/oaf.db files/usr/share/oaf/feature.db files/usr/share/adbyby/adbyby.db
-          echo "CONFIG_OAF_AUTO_UPDATE=n" >> .config
-          echo "CONFIG_ADBYBY_AUTO_UPDATE=n" >> .config
 
-      - name: 📥 6. 下载源码包
+      - name: 📥 6. 下载源码
         run: make download -j$(nproc)
-        
-      - name: 🏗️ 7. 开始编译
+
+      - name: 🏗️ 7. 编译
         run: make -j$(nproc)
 
       - name: 🧹 8. 收集固件
         run: |
           mkdir -p firmware_output
-          find bin -type f \( -name "*hiwifi*factory*.bin" -o -name "*hiwifi*squashfs*.bin" \) -exec cp {} firmware_output/ \;
-          ls -lh firmware_output/ || echo "⚠️ 未找到固件，请检查日志"
+          find bin -type f -name "*hiwifi*" -exec cp {} firmware_output/ \;
+          ls -lh firmware_output/ || echo "未找到固件"
 
-      - name: 📤 9. 上传固件
-        uses: actions/upload-artifact@v4        with:
-          name: immortalwrt-hc5962-24.10-CN-Stable
+      - name: 📤 9. 上传
+        uses: actions/upload-artifact@v4
+        with:
+          name: immortalwrt-hc5962-24.10-Stable
           path: firmware_output/*.bin
